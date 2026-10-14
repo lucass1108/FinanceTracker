@@ -1,0 +1,36 @@
+CREATE DATABASE IF NOT EXISTS financetracker CHARACTER SET utf8mb4;
+USE financetracker;
+
+CREATE TABLE IF NOT EXISTS receitas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descricao VARCHAR(100) NOT NULL,
+    valor DECIMAL(10,2) NOT NULL,
+    data DATE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS despesas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descricao VARCHAR(100) NOT NULL,
+    valor DECIMAL(10,2) NOT NULL,
+    categoria VARCHAR(50) NOT NULL,
+    data DATE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS metas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL UNIQUE,
+    valor_alvo DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS aportes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meta_id INT NOT NULL,
+    valor DECIMAL(10,2) NOT NULL,
+    data DATE NOT NULL,
+    FOREIGN KEY (meta_id) REFERENCES metas(id)
+);
+
+CREATE TABLE IF NOT EXISTS configuracoes (
+    chave VARCHAR(50) PRIMARY KEY,
+    valor DECIMAL(10,2) NOT NULL
+);
