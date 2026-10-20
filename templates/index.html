@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>FinanceTracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="pagina">
+
+        <!-- BARRA DO TOPO -->
+        <header class="topo">
+            <h1 class="logo">Finance<span>Tracker</span></h1>
+            <form method="get" action="{{ url_for('inicio') }}" class="navegacao-mes">
+                <a class="seta" href="{{ url_for('inicio', mes=mes_anterior) }}" aria-label="Mês anterior">&#9664;</a>
+                <input type="month" name="mes" value="{{ mes }}" aria-label="Escolher mês" onchange="this.form.submit()">
+                <a class="seta" href="{{ url_for('inicio', mes=mes_proximo) }}" aria-label="Próximo mês">&#9654;</a>
+            </form>
+        </header>
+
+        <!-- AVISOS -->
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+            {% if mensagens %}
+            <div class="avisos" role="status">
+                {% for categoria, texto in mensagens %}
+                <div class="aviso {{ categoria }}">{{ texto }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- PAINEL PRINCIPAL: SALDO + VIDA DO MÊS -->
+        <section class="hero">
+            <div class="hero-saldo">
+                <span class="rotulo">Saldo disponível</span>
+                <span class="saldo-grande {{ 'negativo' if resumo.saldo_total < 0 else '' }}">{{ resumo.saldo_total | moeda }}</span>
+                <span class="nota">Tudo que entrou, menos o que saiu e o que você guardou em metas.</span>
+            </div>
+
+            <div class="hero-vida">
+                {% if limite_info %}
+                    {% set vida = 100 - limite_info.largura %}
+                    <div class="vida-topo">
+                        <span class="rotulo">Limite de gastos de {{ mes_br }}</span>
+                        <span class="vida-valor {{ 'critico' if vida < 20 else ('alerta' if vida < 50 else '') }}">
+                            {% if limite_info.estourou %}Estourou{% else %}{{ vida | round(0) | int }}% restante{% endif %}
+                        </span>
+                    </div>
+                    <div class="brilho {{ 'critico' if vida < 20 else ('alerta' if vida < 50 else '') }}">
+                        <div class="barra-seg">
+                            <div class="preenchimento" style="--w: {{ vida }}%"></div>
+                        </div>
+                    </div>
+                    <span class="nota">
+                        Gasto {{ resumo.despesas | moeda }} de {{ limite_info.valor | moeda }}.
+                        {% if limite_info.estourou %}
+                            Passou {{ (resumo.despesas - limite_info.valor) | moeda }} do limite.
+                        {% else %}
+                            Restam {{ limite_info.restante | moeda }}.
+                        {% endif %}
+                    </span>
+                {% else %}
+                    <div class="vida-topo">
+                        <span class="rotulo">Limite de gastos de {{ mes_br }}</span>
+                    </div>
+                    <div class="brilho">
+                        <div class="barra-seg vazia"><div class="preenchimento" style="--w: 0%"></div></div>
+                    </div>
+                    <span class="nota">Defina um limite mensal (painel de metas, ao lado) para acompanhar quanto ainda pode gastar.</span>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- NÚMEROS DO MÊS -->
+        <section class="numeros" aria-label="Resumo de {{ mes_br }}">
+            <div class="numero verde">
+                <span class="rotulo">Receitas de {{ mes_br }}</span>
+                <span class="valor">{{ resumo.receitas | moeda }}</span>
+            </div>
+            <div class="numero rosa">
+                <span class="rotulo">Despesas de {{ mes_br }}</span>
+                <span class="valor">{{ resumo.despesas | moeda }}</span>
+            </div>
+            <div class="numero ciano">
+                <span class="rotulo">Guardado em metas</span>
+                <span class="valor">{{ resumo.guardado | moeda }}</span>
+            </div>
+            <div class="numero roxo">
+                <span class="rotulo">Saldo do mês</span>
+                <span class="valor {{ 'negativo' if resumo.saldo_mes < 0 else '' }}">{{ resumo.saldo_mes | moeda }}</span>
+            </div>
+        </section>
+
+        <div class="grade">
+
+            <!-- COLUNA LATERAL: AÇÕES -->
+            <aside class="lateral">
+
+                <section class="painel">
+                    <h2>Novo lançamento</h2>
+                    <div class="abas" role="group" aria-label="Tipo de lançamento">
+                        <button type="button" data-aba="despesa" aria-pressed="true">Despesa</button>
+                        <button type="button" data-aba="receita" aria-pressed="false">Receita</button>
+                    </div>
+
+                    <form method="post" action="{{ url_for('adicionar_despesa') }}" class="formulario" id="form-despesa">
+                        <input type="hidden" name="mes" value="{{ mes }}">
+                        <label>Descrição
+                            <input type="text" name="descricao" placeholder="Ex: Mercado" maxlength="100" required>
+                        </label>
+                        <div class="par">
+                            <label>Valor (R$)
+                                <input type="text" name="valor" inputmode="decimal" placeholder="150,50" required>
+                            </label>
+                            <label>Data
+                                <input type="date" name="data" value="{{ hoje }}" required>
+                            </label>
+                        </div>
+                        <label>Categoria
+                            <select name="categoria" id="categoria" required>
+                                {% for nome in categorias_opcoes %}
+                                <option value="{{ nome }}">{{ nome }}</option>
+                                {% endfor %}
+                                <option value="__nova__">Outra (criar nova)...</option>
+                            </select>
+                        </label>
+                        <label id="campo-nova-categoria" hidden>Nome da nova categoria
+                            <input type="text" name="nova_categoria" id="nova-categoria" maxlength="50" placeholder="Ex: Pet shop">
+                        </label>
+                        <button type="submit" class="botao">Adicionar despesa</button>
+                    </form>
+
+                    <form method="post" action="{{ url_for('adicionar_receita') }}" class="formulario" id="form-receita" hidden>
+                        <input type="hidden" name="mes" value="{{ mes }}">
+                        <label>Descrição
+                            <input type="text" name="descricao" placeholder="Ex: Salário" maxlength="100" required>
+                        </label>
+                        <div class="par">
+                            <label>Valor (R$)
+                                <input type="text" name="valor" inputmode="decimal" placeholder="3000,00" required>
+                            </label>
+                            <label>Data
+                                <input type="date" name="data" value="{{ hoje }}" required>
+                            </label>
+                        </div>
+                        <button type="submit" class="botao">Adicionar receita</button>
+                    </form>
+                </section>
+
+                <section class="painel">
+                    <h2>Metas de economia</h2>
+
+                    {% if metas %}
+                    <div class="lista-metas">
+                        {% for meta in metas %}
+                        <article class="meta">
+                            <div class="meta-topo">
+                                <strong>{{ meta.nome }}</strong>
+                                <span class="selo {{ 'completa' if meta.percentual >= 100 else '' }}">{{ meta.percentual | round(0) | int }}%</span>
+                            </div>
+                            <div class="brilho {{ 'completa' if meta.percentual >= 100 else 'ciano' }}">
+                                <div class="barra-seg fina">
+                                    <div class="preenchimento" style="--w: {{ meta.largura }}%"></div>
+                                </div>
+                            </div>
+                            <span class="nota">
+                                {{ meta.guardado | moeda }} de {{ meta.alvo | moeda }}.
+                                {% if meta.percentual >= 100 %}Meta atingida!{% else %}Faltam {{ meta.falta | moeda }}.{% endif %}
+                            </span>
+                            <form method="post" class="acoes-meta">
+                                <input type="hidden" name="mes" value="{{ mes }}">
+                                <input type="text" name="valor" inputmode="decimal" placeholder="Valor (R$)" aria-label="Valor para {{ meta.nome }}" required>
+                                <button type="submit" formaction="{{ url_for('guardar_na_meta', id_meta=meta.id) }}" class="botao pequeno">Guardar</button>
+                                <button type="submit" formaction="{{ url_for('retirar_da_meta', id_meta=meta.id) }}" class="botao-contorno pequeno">Retirar</button>
+                                <button type="submit" formaction="{{ url_for('excluir_meta', id_meta=meta.id) }}" formnovalidate class="botao-perigo pequeno" onclick="return confirm('Excluir esta meta?');">Excluir</button>
+                            </form>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="vazio">Nenhuma meta ainda. Crie a primeira abaixo, por exemplo Viagem ou Investimentos.</p>
+                    {% endif %}
+
+                    <details class="gaveta" {{ '' if metas else 'open' }}>
+                        <summary>Criar nova meta</summary>
+                        <form method="post" action="{{ url_for('criar_meta') }}" class="formulario">
+                            <input type="hidden" name="mes" value="{{ mes }}">
+                            <label>Nome da meta
+                                <input type="text" name="nome" placeholder="Ex: Viagem, Investimentos" maxlength="100" required>
+                            </label>
+                            <label>Quanto juntar (R$)
+                                <input type="text" name="valor_alvo" inputmode="decimal" placeholder="2000,00" required>
+                            </label>
+                            <button type="submit" class="botao">Criar meta</button>
+                        </form>
+                    </details>
+
+                    <details class="gaveta">
+                        <summary>{{ 'Alterar limite de gastos' if limite_info else 'Definir limite de gastos do mês' }}</summary>
+                        <form method="post" action="{{ url_for('definir_limite') }}" class="formulario">
+                            <input type="hidden" name="mes" value="{{ mes }}">
+                            <label>Limite por mês (R$)
+                                <input type="text" name="valor" inputmode="decimal" placeholder="1500,00" required>
+                            </label>
+                            <div class="par-botoes">
+                                <button type="submit" class="botao">Salvar limite</button>
+                                {% if limite_info %}
+                                <button type="submit" formaction="{{ url_for('remover_limite') }}" formnovalidate class="botao-contorno">Remover</button>
+                                {% endif %}
+                            </div>
+                        </form>
+                    </details>
+                </section>
+            </aside>
+
+            <!-- COLUNA PRINCIPAL: LISTAS -->
+            <main class="principal">
+
+                {% if categorias %}
+                <section class="painel">
+                    <h2>Para onde foi o dinheiro</h2>
+                    <div class="lista-categorias">
+                        {% for item in categorias %}
+                        <div class="categoria c{{ loop.index0 % 4 }}">
+                            <div class="categoria-topo">
+                                <span>{{ item.nome }}</span>
+                                <span>{{ item.total | moeda }} <small>({{ item.percentual }}%)</small></span>
+                            </div>
+                            <div class="trilho"><div class="preenchimento" style="--w: {{ item.percentual }}%"></div></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
+
+                <section class="painel">
+                    <h2>Despesas de {{ mes_br }}</h2>
+                    {% if despesas %}
+                    <div class="tabela-wrap">
+                        <table>
+                            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th class="num">Valor</th><th><span class="so-leitor">Ações</span></th></tr></thead>
+                            <tbody>
+                            {% for item in despesas %}
+                                <tr>
+                                    <td class="data">{{ item.data | data_br }}</td>
+                                    <td>{{ item.descricao }}</td>
+                                    <td><span class="chip">{{ item.categoria }}</span></td>
+                                    <td class="num negativo">- {{ item.valor | moeda }}</td>
+                                    <td class="acao">
+                                        <form method="post" action="{{ url_for('remover_despesa', id_despesa=item.id) }}" onsubmit="return confirm('Remover esta despesa?');">
+                                            <input type="hidden" name="mes" value="{{ mes }}">
+                                            <button type="submit" class="botao-perigo pequeno">Remover</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="vazio">Nenhuma despesa em {{ mes_br }}. Use o formulário ao lado para lançar a primeira.</p>
+                    {% endif %}
+                </section>
+
+                <section class="painel">
+                    <h2>Receitas de {{ mes_br }}</h2>
+                    {% if receitas %}
+                    <div class="tabela-wrap">
+                        <table>
+                            <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th><th><span class="so-leitor">Ações</span></th></tr></thead>
+                            <tbody>
+                            {% for item in receitas %}
+                                <tr>
+                                    <td class="data">{{ item.data | data_br }}</td>
+                                    <td>{{ item.descricao }}</td>
+                                    <td class="num positivo">+ {{ item.valor | moeda }}</td>
+                                    <td class="acao">
+                                        <form method="post" action="{{ url_for('remover_receita', id_receita=item.id) }}" onsubmit="return confirm('Remover esta receita?');">
+                                            <input type="hidden" name="mes" value="{{ mes }}">
+                                            <button type="submit" class="botao-perigo pequeno">Remover</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="vazio">Nenhuma receita em {{ mes_br }}. Troque para a aba Receita ao lado e lance seu salário.</p>
+                    {% endif %}
+                </section>
+
+                {% if aportes %}
+                <section class="painel">
+                    <h2>Movimentos das metas em {{ mes_br }}</h2>
+                    <div class="tabela-wrap">
+                        <table>
+                            <thead><tr><th>Data</th><th>Meta</th><th class="num">Valor</th></tr></thead>
+                            <tbody>
+                            {% for item in aportes %}
+                                <tr>
+                                    <td class="data">{{ item.data | data_br }}</td>
+                                    <td>{{ item.descricao }}</td>
+                                    <td class="num {{ 'positivo' if item.valor > 0 else 'negativo' }}">{{ item.valor | moeda }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="nota">Valores negativos são retiradas.</p>
+                </section>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var abas = document.querySelectorAll("[data-aba]");
+            var formularios = {
+                despesa: document.getElementById("form-despesa"),
+                receita: document.getElementById("form-receita")
+            };
+
+            function mostrar(nome) {
+                abas.forEach(function (botao) {
+                    botao.setAttribute("aria-pressed", botao.getAttribute("data-aba") === nome ? "true" : "false");
+                });
+                Object.keys(formularios).forEach(function (chave) {
+                    formularios[chave].hidden = chave !== nome;
+                });
+                try { sessionStorage.setItem("aba-lancamento", nome); } catch (erro) {}
+            }
+
+            abas.forEach(function (botao) {
+                botao.addEventListener("click", function () { mostrar(botao.getAttribute("data-aba")); });
+            });
+
+            try {
+                var salva = sessionStorage.getItem("aba-lancamento");
+                if (salva === "receita" || salva === "despesa") { mostrar(salva); }
+            } catch (erro) {}
+
+            var seletor = document.getElementById("categoria");
+            var campo = document.getElementById("campo-nova-categoria");
+            var entrada = document.getElementById("nova-categoria");
+            seletor.addEventListener("change", function () {
+                var nova = seletor.value === "__nova__";
+                campo.hidden = !nova;
+                entrada.required = nova;
+            });
+        })();
+    </script>
+</body>
+</html>
