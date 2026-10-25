@@ -3,27 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="dark">
+    <meta name="color-scheme" content="light dark">
     <title>FinanceTracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+
+{% macro icone(nome) -%}
+<svg class="icone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    {%- if nome == 'carteira' -%}
+    <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+    {%- elif nome == 'entrada' -%}
+    <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+    {%- elif nome == 'saida' -%}
+    <path d="M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z"/>
+    {%- elif nome == 'meta' -%}
+    <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
+    {%- elif nome == 'esquerda' -%}
+    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+    {%- elif nome == 'direita' -%}
+    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+    {%- endif -%}
+</svg>
+{%- endmacro %}
+
+    <!-- BARRA SUPERIOR -->
+    <header class="barra-app">
+        <div class="barra-conteudo">
+            <a class="marca" href="{{ url_for('inicio') }}">
+                <span class="marca-icone">{{ icone('carteira') }}</span>
+                <span class="marca-nome">FinanceTracker</span>
+            </a>
+            <form method="get" action="{{ url_for('inicio') }}" class="navegacao-mes">
+                <a class="botao-icone" href="{{ url_for('inicio', mes=mes_anterior) }}" aria-label="Mês anterior">{{ icone('esquerda') }}</a>
+                <input type="month" name="mes" value="{{ mes }}" aria-label="Escolher mês" onchange="this.form.submit()">
+                <a class="botao-icone" href="{{ url_for('inicio', mes=mes_proximo) }}" aria-label="Próximo mês">{{ icone('direita') }}</a>
+            </form>
+        </div>
+    </header>
+
     <div class="pagina">
 
-        <!-- BARRA DO TOPO -->
-        <header class="topo">
-            <h1 class="logo">Finance<span>Tracker</span></h1>
-            <form method="get" action="{{ url_for('inicio') }}" class="navegacao-mes">
-                <a class="seta" href="{{ url_for('inicio', mes=mes_anterior) }}" aria-label="Mês anterior">&#9664;</a>
-                <input type="month" name="mes" value="{{ mes }}" aria-label="Escolher mês" onchange="this.form.submit()">
-                <a class="seta" href="{{ url_for('inicio', mes=mes_proximo) }}" aria-label="Próximo mês">&#9654;</a>
-            </form>
-        </header>
+        <div class="titulo-pagina">
+            <h1>Visão geral</h1>
+            <p>{{ mes_br }}</p>
+        </div>
 
-        <!-- AVISOS -->
         {% with mensagens = get_flashed_messages(with_categories=true) %}
             {% if mensagens %}
             <div class="avisos" role="status">
@@ -34,74 +62,86 @@
             {% endif %}
         {% endwith %}
 
-        <!-- PAINEL PRINCIPAL: SALDO + VIDA DO MÊS -->
-        <section class="hero">
-            <div class="hero-saldo">
+        <!-- SALDO E LIMITE -->
+        <section class="destaques">
+            <article class="cartao">
                 <span class="rotulo">Saldo disponível</span>
                 <span class="saldo-grande {{ 'negativo' if resumo.saldo_total < 0 else '' }}">{{ resumo.saldo_total | moeda }}</span>
-                <span class="nota">Tudo que entrou, menos o que saiu e o que você guardou em metas.</span>
-            </div>
+                <span class="nota">Tudo que entrou, menos o que saiu e o que foi guardado em metas.</span>
+            </article>
 
-            <div class="hero-vida">
+            <article class="cartao">
                 {% if limite_info %}
                     {% set vida = 100 - limite_info.largura %}
-                    <div class="vida-topo">
+                    {% if limite_info.estourou %}
+                        {% set estado = 'erro' %}{% set texto_estado = 'Acima do limite' %}
+                    {% elif vida < 20 %}
+                        {% set estado = 'aviso' %}{% set texto_estado = 'Quase no limite' %}
+                    {% elif vida < 50 %}
+                        {% set estado = 'aviso' %}{% set texto_estado = 'Atenção' %}
+                    {% else %}
+                        {% set estado = 'ok' %}{% set texto_estado = 'Dentro do limite' %}
+                    {% endif %}
+                    <div class="cartao-topo">
                         <span class="rotulo">Limite de gastos de {{ mes_br }}</span>
-                        <span class="vida-valor {{ 'critico' if vida < 20 else ('alerta' if vida < 50 else '') }}">
-                            {% if limite_info.estourou %}Estourou{% else %}{{ vida | round(0) | int }}% restante{% endif %}
-                        </span>
+                        <span class="selo {{ estado }}">{{ texto_estado }}</span>
                     </div>
-                    <div class="brilho {{ 'critico' if vida < 20 else ('alerta' if vida < 50 else '') }}">
-                        <div class="barra-seg">
-                            <div class="preenchimento" style="--w: {{ vida }}%"></div>
-                        </div>
-                    </div>
+                    <span class="valor-medio">{{ resumo.despesas | moeda }} <small>de {{ limite_info.valor | moeda }}</small></span>
+                    <div class="progresso {{ estado }}"><div class="progresso-barra" style="--w: {{ limite_info.largura }}%"></div></div>
                     <span class="nota">
-                        Gasto {{ resumo.despesas | moeda }} de {{ limite_info.valor | moeda }}.
                         {% if limite_info.estourou %}
-                            Passou {{ (resumo.despesas - limite_info.valor) | moeda }} do limite.
+                            Você passou {{ (resumo.despesas - limite_info.valor) | moeda }} do limite.
                         {% else %}
-                            Restam {{ limite_info.restante | moeda }}.
+                            Restam {{ limite_info.restante | moeda }} ({{ limite_info.percentual }}% usado).
                         {% endif %}
                     </span>
                 {% else %}
-                    <div class="vida-topo">
-                        <span class="rotulo">Limite de gastos de {{ mes_br }}</span>
-                    </div>
-                    <div class="brilho">
-                        <div class="barra-seg vazia"><div class="preenchimento" style="--w: 0%"></div></div>
-                    </div>
-                    <span class="nota">Defina um limite mensal (painel de metas, ao lado) para acompanhar quanto ainda pode gastar.</span>
+                    <span class="rotulo">Limite de gastos de {{ mes_br }}</span>
+                    <span class="valor-medio sem-limite">Nenhum limite definido</span>
+                    <div class="progresso"><div class="progresso-barra" style="--w: 0%"></div></div>
+                    <span class="nota">Defina um limite mensal no painel de metas para acompanhar quanto ainda pode gastar.</span>
                 {% endif %}
-            </div>
+            </article>
         </section>
 
         <!-- NÚMEROS DO MÊS -->
-        <section class="numeros" aria-label="Resumo de {{ mes_br }}">
-            <div class="numero verde">
-                <span class="rotulo">Receitas de {{ mes_br }}</span>
-                <span class="valor">{{ resumo.receitas | moeda }}</span>
-            </div>
-            <div class="numero rosa">
-                <span class="rotulo">Despesas de {{ mes_br }}</span>
-                <span class="valor">{{ resumo.despesas | moeda }}</span>
-            </div>
-            <div class="numero ciano">
-                <span class="rotulo">Guardado em metas</span>
-                <span class="valor">{{ resumo.guardado | moeda }}</span>
-            </div>
-            <div class="numero roxo">
-                <span class="rotulo">Saldo do mês</span>
-                <span class="valor {{ 'negativo' if resumo.saldo_mes < 0 else '' }}">{{ resumo.saldo_mes | moeda }}</span>
-            </div>
+        <section class="metricas" aria-label="Resumo de {{ mes_br }}">
+            <article class="cartao metrica">
+                <span class="metrica-icone entrada">{{ icone('entrada') }}</span>
+                <div>
+                    <span class="rotulo">Receitas</span>
+                    <span class="valor positivo">{{ resumo.receitas | moeda }}</span>
+                </div>
+            </article>
+            <article class="cartao metrica">
+                <span class="metrica-icone saida">{{ icone('saida') }}</span>
+                <div>
+                    <span class="rotulo">Despesas</span>
+                    <span class="valor negativo">{{ resumo.despesas | moeda }}</span>
+                </div>
+            </article>
+            <article class="cartao metrica">
+                <span class="metrica-icone">{{ icone('meta') }}</span>
+                <div>
+                    <span class="rotulo">Guardado em metas</span>
+                    <span class="valor">{{ resumo.guardado | moeda }}</span>
+                </div>
+            </article>
+            <article class="cartao metrica">
+                <span class="metrica-icone">{{ icone('carteira') }}</span>
+                <div>
+                    <span class="rotulo">Saldo do mês</span>
+                    <span class="valor {{ 'negativo' if resumo.saldo_mes < 0 else '' }}">{{ resumo.saldo_mes | moeda }}</span>
+                </div>
+            </article>
         </section>
 
         <div class="grade">
 
-            <!-- COLUNA LATERAL: AÇÕES -->
+            <!-- COLUNA LATERAL -->
             <aside class="lateral">
 
-                <section class="painel">
+                <section class="cartao">
                     <h2>Novo lançamento</h2>
                     <div class="abas" role="group" aria-label="Tipo de lançamento">
                         <button type="button" data-aba="despesa" aria-pressed="true">Despesa</button>
@@ -152,7 +192,7 @@
                     </form>
                 </section>
 
-                <section class="painel">
+                <section class="cartao">
                     <h2>Metas de economia</h2>
 
                     {% if metas %}
@@ -161,16 +201,12 @@
                         <article class="meta">
                             <div class="meta-topo">
                                 <strong>{{ meta.nome }}</strong>
-                                <span class="selo {{ 'completa' if meta.percentual >= 100 else '' }}">{{ meta.percentual | round(0) | int }}%</span>
+                                <span class="selo {{ 'ok' if meta.percentual >= 100 else '' }}">{{ meta.percentual | round(0) | int }}%</span>
                             </div>
-                            <div class="brilho {{ 'completa' if meta.percentual >= 100 else 'ciano' }}">
-                                <div class="barra-seg fina">
-                                    <div class="preenchimento" style="--w: {{ meta.largura }}%"></div>
-                                </div>
-                            </div>
+                            <div class="progresso {{ 'ok' if meta.percentual >= 100 else '' }}"><div class="progresso-barra" style="--w: {{ meta.largura }}%"></div></div>
                             <span class="nota">
                                 {{ meta.guardado | moeda }} de {{ meta.alvo | moeda }}.
-                                {% if meta.percentual >= 100 %}Meta atingida!{% else %}Faltam {{ meta.falta | moeda }}.{% endif %}
+                                {% if meta.percentual >= 100 %}Meta atingida.{% else %}Faltam {{ meta.falta | moeda }}.{% endif %}
                             </span>
                             <form method="post" class="acoes-meta">
                                 <input type="hidden" name="mes" value="{{ mes }}">
@@ -218,28 +254,28 @@
                 </section>
             </aside>
 
-            <!-- COLUNA PRINCIPAL: LISTAS -->
+            <!-- COLUNA PRINCIPAL -->
             <main class="principal">
 
                 {% if categorias %}
-                <section class="painel">
-                    <h2>Para onde foi o dinheiro</h2>
+                <section class="cartao">
+                    <h2>Gastos por categoria</h2>
                     <div class="lista-categorias">
                         {% for item in categorias %}
-                        <div class="categoria c{{ loop.index0 % 4 }}">
+                        <div class="categoria">
                             <div class="categoria-topo">
                                 <span>{{ item.nome }}</span>
-                                <span>{{ item.total | moeda }} <small>({{ item.percentual }}%)</small></span>
+                                <span>{{ item.total | moeda }} <small>{{ item.percentual }}%</small></span>
                             </div>
-                            <div class="trilho"><div class="preenchimento" style="--w: {{ item.percentual }}%"></div></div>
+                            <div class="progresso fino"><div class="progresso-barra" style="--w: {{ item.percentual }}%"></div></div>
                         </div>
                         {% endfor %}
                     </div>
                 </section>
                 {% endif %}
 
-                <section class="painel">
-                    <h2>Despesas de {{ mes_br }}</h2>
+                <section class="cartao tabela-cartao">
+                    <h2>Despesas</h2>
                     {% if despesas %}
                     <div class="tabela-wrap">
                         <table>
@@ -267,8 +303,8 @@
                     {% endif %}
                 </section>
 
-                <section class="painel">
-                    <h2>Receitas de {{ mes_br }}</h2>
+                <section class="cartao tabela-cartao">
+                    <h2>Receitas</h2>
                     {% if receitas %}
                     <div class="tabela-wrap">
                         <table>
@@ -296,8 +332,8 @@
                 </section>
 
                 {% if aportes %}
-                <section class="painel">
-                    <h2>Movimentos das metas em {{ mes_br }}</h2>
+                <section class="cartao tabela-cartao">
+                    <h2>Movimentos das metas</h2>
                     <div class="tabela-wrap">
                         <table>
                             <thead><tr><th>Data</th><th>Meta</th><th class="num">Valor</th></tr></thead>
@@ -312,7 +348,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="nota">Valores negativos são retiradas.</p>
+                    <p class="nota rodape-tabela">Valores negativos são retiradas.</p>
                 </section>
                 {% endif %}
             </main>
