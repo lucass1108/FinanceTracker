@@ -104,6 +104,14 @@ As duas versões usam o mesmo banco de dados.
 
 Variáveis e tipos, condicionais, laços, listas, dicionários, funções, tratamento de erros com `try/except`, manipulação de datas, organização em módulos, SQL (`CREATE`, `INSERT`, `SELECT`, `UPDATE`, `DELETE`, `JOIN`), consultas parametrizadas, variáveis de ambiente com `.env`, rotas e templates com Flask, formulários HTML, CSS responsivo e versionamento com Git.
 
+## Exemplo de uso
+
+1. Cadastre sua receita mensal (ex.: salário R$ 3.000,00).
+2. Registre despesas por categoria (Alimentação, Transporte, etc.).
+3. Defina um limite mensal de gastos — a barra de progresso avisa ao chegar perto.
+4. Crie uma meta de economia (ex.: "Reserva de emergência" — R$ 5.000,00) e registre aportes.
+5. Navegue entre meses para consultar o histórico e ver gastos por categoria.
+
 ## Próximos passos
 
 - [ ] Testes automatizados
